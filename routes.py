@@ -870,7 +870,7 @@ def solve(I_total,              # set of all customers and Medical center
     elif model.Status == GRB.INFEASIBLE:
         print("Model is infeasible.")
         model.computeIIS()
-        model.write("infeasibility_report.ilp")
+        model.write("outputs/infeasibility_report.ilp")
         return model.Status, None, None
     
 

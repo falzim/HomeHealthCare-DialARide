@@ -3,6 +3,21 @@ import staff_schedule
 import routes 
 from plot_graph import plotter
 from gurobipy import *
+import glob
+import os
+
+
+"""Delete all Output Files"""
+
+files = glob.glob(os.path.join('outputs', "*"))
+
+# Iterate over the list and delete each file
+for file in files:
+    try:
+        os.remove(file)
+        print(f"Deleted file: {file}")
+    except Exception as e:
+        print(f"Error deleting file {file}: {e}")
 
 """Parameter Setting Section"""
 
