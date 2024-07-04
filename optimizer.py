@@ -567,7 +567,7 @@ def solve(I_total,              # set of all customers and Medical center
             + quicksum(use_staff[s] for s in S1) * level_1 
             + quicksum(use_staff[s] for s in S2) * level_2 
             + quicksum(use_staff[s] for s in S3) * level_3                                  # cost for nurses 8h shifts
-            + quicksum(t['MCd',r] - t['MC',r] for r in range(allowed_routes)) * fuel_cost   # cost for fuel
+            # + quicksum(t['MCd',r] - t['MC',r] for r in range(allowed_routes)) * fuel_cost   # cost for fuel
             )
     # log_callback = LogCallback()
     model.setParam(GRB.Param.TimeLimit, 1800)
@@ -757,7 +757,8 @@ def solve(I_total,              # set of all customers and Medical center
                         'Next Node': [],
                         'Time': [],
                         'Used Capacity (leaving the node)': [],
-                        'Route:': [],
+                        'Route': [],
+                        'Node Type': []
                         }
                 df = pd.DataFrame(data)
                 for r in range(allowed_routes):
@@ -767,7 +768,8 @@ def solve(I_total,              # set of all customers and Medical center
                                         'Next Node': 'n.a.',
                                         'Time': round(t['MCd',r].getAttr('X')),
                                         'Used Capacity (leaving the node)': 'n.a.',
-                                        'Route:': r,
+                                        'Route': r,
+                                        'Node Type': 'end of route'
                                         }
                             connect_df = pd.DataFrame([new_row])
                             df = pd.concat([df, connect_df])
@@ -775,12 +777,32 @@ def solve(I_total,              # set of all customers and Medical center
                                 for j in I_total:
                                     if i != j:
                                         if round(X[i,j,r].getAttr('X')) == 1:
+                                            node_type = 'error'
+                                            if i in I1:
+                                                node_type = 'type 1 drop off'
+                                            elif i in I2:
+                                                node_type = 'type 2 drop off'
+                                            elif i in I3: 
+                                                node_type = 'type 3 drop off'
+                                            elif i in I0:
+                                                node_type = 'patient pickup'
+                                            elif i in I_1:
+                                                node_type = 'type 1 pick up'
+                                            elif i in I_2:
+                                                node_type = 'type 2 pick up'
+                                            elif i in I_3:
+                                                node_type = 'type 3 pick up'
+                                            elif i in I_0:
+                                                node_type = 'patient drop off'
+                                            elif i == 'MC':
+                                                node_type = 'start of route'
                                             new_row =   {'Current Node': i,
                                                         'Next Node': j,
                                                         'Time': round(t[i,r].getAttr('X')),
                                                         'Used Capacity (leaving the node)': sum(round(o[i,j,s,r].getAttr('X')) for s in S) 
                                                                                             + sum(round(op[i,j,l,r].getAttr('X')) for l in I0),
-                                                        'Route:': r,
+                                                        'Route': r,
+                                                        'Node Type': node_type
                                                         }
                                             connect_df = pd.DataFrame([new_row])
                                             df = pd.concat([df, connect_df])
@@ -862,7 +884,7 @@ def solve(I_total,              # set of all customers and Medical center
     elif model.Status == GRB.INFEASIBLE:
         print("Model is infeasible.")
         model.computeIIS()
-        model.write("infeasibility_report.ilp")
+        model.write("outputs/infeasibility_report.ilp")
         return model.Status, None, None
     
 
