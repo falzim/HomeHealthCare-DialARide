@@ -1,0 +1,49 @@
+\ Model optimizer_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+Minimize
+ 
+Subject To
+ R2: W_4_s5 + W_4_s6 = 1
+ R24: - 10000 W_4_s5 - Dt_4_s5 + Pt_4_s5 >= -9900
+ R34: - 10000 W_5_s5 - Dt_5_s5 >= -10900
+ R40: 10000 W_4_s5 - Dt_4_s5 <= 9200
+ R43: 10000 W_5_s6 - Dt_5_s6 <= 9200
+ R50: - 10000 W_5_s5 - Dt_5_s5 + Pt_5_s5 >= -9900
+ R75: - 10000 W_5_s6 - Dt_5_s6 + Pt_5_s6 >= -9900
+ R81: - 10000 W_4_s6 - Dt_4_s6 >= -10900
+ R90: 10000 W_5_s5 - Dt_5_s5 <= 9200
+ R107: - 10000 W_5_s6 - Dt_5_s6 >= -10900
+ R113: 10000 W_4_s6 - Dt_4_s6 <= 9200
+ R121: - 10000 W_4_s6 - Dt_4_s6 + Pt_4_s6 >= -9900
+ R128: - 10000 W_4_s5 - Dt_4_s5 >= -10900
+ R149: - W_5_s5 + predecessor_4_5_s5 <= 0
+ R151: - W_5_s6 + predecessor_4_5_s6 <= 0
+ R152: - W_5_s5 + predecessor_5_4_s5 <= 0
+ R154: - W_5_s6 + predecessor_5_4_s6 <= 0
+ R156: Dt_4_s5 - Pt_5_s5 - 10000 predecessor_4_5_s5 >= -9990
+ R157: Dt_4_s6 - Pt_5_s6 - 10000 predecessor_4_5_s6 >= -9990
+ R158: - Pt_4_s5 + Dt_5_s5 - 10000 predecessor_5_4_s5 >= -9990
+ R159: - Pt_4_s6 + Dt_5_s6 - 10000 predecessor_5_4_s6 >= -9990
+ R164: predecessor_MC_4_s5 + predecessor_MC_5_s5 - use_staff_s5 = 0
+ R165: predecessor_MC_4_s6 + predecessor_MC_5_s6 - use_staff_s6 = 0
+ R174: predecessor_5_4_s5 + predecessor_MC_4_s5 - use_staff_s5 = 0
+ R176: predecessor_4_5_s5 + predecessor_MC_5_s5 - use_staff_s5 = 0
+ R178: predecessor_5_4_s6 + predecessor_MC_4_s6 - use_staff_s6 = 0
+ R180: predecessor_4_5_s6 + predecessor_MC_5_s6 - use_staff_s6 = 0
+ R186: - W_4_s5 + use_staff_s5 >= 0
+ R188: - W_4_s6 + use_staff_s6 >= 0
+Bounds
+ Dt_4_s5 free
+ Pt_4_s5 free
+ Dt_4_s6 free
+ Pt_4_s6 free
+ Dt_5_s5 free
+ Pt_5_s5 free
+ Dt_5_s6 free
+ Pt_5_s6 free
+Binaries
+ W_4_s5 W_4_s6 W_5_s5 W_5_s6 predecessor_4_5_s5 predecessor_4_5_s6
+ predecessor_5_4_s5 predecessor_5_4_s6 predecessor_MC_4_s5
+ predecessor_MC_4_s6 predecessor_MC_5_s5 predecessor_MC_5_s6 use_staff_s5
+ use_staff_s6
+End
