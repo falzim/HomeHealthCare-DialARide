@@ -1,0 +1,67 @@
+r23m0071.hpc.itc.rwth-aachen.de
+Mon Aug 19 17:04:23 CEST 2024
+Set parameter TSPort to value 50039
+Set parameter TokenServer to value "license6.itc.rwth-aachen.de"
+Set parameter MIPFocus to value 2
+Gurobi Optimizer version 10.0.0 build v10.0.0rc2 (linux64)
+
+CPU model: Intel(R) Xeon(R) Platinum 8468, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 96 physical cores, 96 logical processors, using up to 32 threads
+
+Optimize a model with 90 rows, 32 columns and 201 nonzeros
+Model fingerprint: 0x30689d6d
+Variable types: 13 continuous, 19 integer (19 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+03]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 1e+00]
+  RHS range        [1e+00, 3e+03]
+Presolve removed 90 rows and 32 columns
+Presolve time: 0.00s
+Presolve: All rows and columns removed
+
+Explored 0 nodes (0 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 1 (of 96 available processors)
+
+Solution count 1: 3 
+
+Optimal solution found (tolerance 1.00e-04)
+Best objective 3.000000000000e+00, best bound 3.000000000000e+00, gap 0.0000%
+Set parameter TimeLimit to value 172800
+Set parameter MIPFocus to value 1
+Set parameter Heuristics to value 0.5
+Gurobi Optimizer version 10.0.0 build v10.0.0rc2 (linux64)
+
+CPU model: Intel(R) Xeon(R) Platinum 8468, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 96 physical cores, 96 logical processors, using up to 32 threads
+
+Optimize a model with 9083 rows, 5480 columns and 41102 nonzeros
+Model fingerprint: 0x44e7b5cd
+Variable types: 149 continuous, 5331 integer (5331 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+03]
+  Objective range  [2e+02, 2e+02]
+  Bounds range     [1e+00, 1e+00]
+  RHS range        [1e+00, 4e+03]
+Presolve removed 4821 rows and 2181 columns
+Presolve time: 0.26s
+Presolved: 4262 rows, 3299 columns, 18800 nonzeros
+Variable types: 134 continuous, 3165 integer (3165 binary)
+
+Root relaxation: objective 9.300000e+02, 1903 iterations, 0.06 seconds (0.07 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0  930.00000    0   39          -  930.00000      -     -    0s
+     0     0  930.00000    0   70          -  930.00000      -     -    0s
+H    0     0                     930.0000000  930.00000  0.00%     -    0s
+
+Explored 1 nodes (7172 simplex iterations) in 0.58 seconds (0.74 work units)
+Thread count was 32 (of 96 available processors)
+
+Solution count 1: 930 
+
+Optimal solution found (tolerance 1.00e-04)
+Best objective 9.300000000000e+02, best bound 9.300000000000e+02, gap 0.0000%
+Mon Aug 19 17:04:29 CEST 2024

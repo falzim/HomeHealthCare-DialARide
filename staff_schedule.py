@@ -37,7 +37,7 @@ def solve(I1,                   # set of all clients with staff 1 requirement dr
     clients = I1 + I2 + I3
    
 
-    M = 1000
+    M = 1440
 
     """Variable Declaration"""
 
@@ -145,38 +145,13 @@ def solve(I1,                   # set of all clients with staff 1 requirement dr
                                 current_client = c
                                 schedule += [c]
                 client_staff_match[s] = schedule
-            print(f'The schedule for staff {s} is :')
-            for c in schedule:
-                print(c)
-        print(client_staff_match)
-        
 
-        variable_groups = {}
-        for var in model.getVars():
-            name = var.varName.split('_')[0]  # Extract variable name without index
-            if name not in variable_groups:
-                variable_groups[name] = []
-            variable_groups[name].append(var)
-
-        # Save output to a file
-        output_file_path = "outputs/decision_variables.txt"
-        nonzero_output_file_path = "outputs/nonzero_decision_variables.txt"
+        output_file_path = "outputs/b_staff_schedule.txt"
         with open(output_file_path, "w") as output_file:
+            output_file.write(f"Runtime: {model.Runtime}\n")
+            for key in client_staff_match.keys():
+                output_file.write(f"Staff '{key}':\n {client_staff_match[key]} \n \n")
 
-            # Print decision variables grouped by their names to the file
-            for name, vars in variable_groups.items():
-                output_file.write(f"Variables with name '{name}':\n")
-                for var in vars:
-                    output_file.write(f"{var.varName} = {var.x}\n")
-
-        with open(nonzero_output_file_path, "w") as output_file:
-
-            # Print decision variables grouped by their names to the file
-            for name, vars in variable_groups.items():
-                output_file.write(f"Variables with name '{name}':\n")
-                for var in vars:
-                    if var.x >= 0.99:
-                        output_file.write(f"{var.varName} = {np.round(var.x,0)}\n")
         return client_staff_match
     elif model.Status == GRB.INFEASIBLE:
         print("Model is infeasible.")

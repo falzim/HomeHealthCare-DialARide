@@ -1,0 +1,103 @@
+r23m0025.hpc.itc.rwth-aachen.de
+Mon Aug 19 17:07:00 CEST 2024
+Set parameter TSPort to value 50039
+Set parameter TokenServer to value "license6.itc.rwth-aachen.de"
+Set parameter MIPFocus to value 2
+Gurobi Optimizer version 10.0.0 build v10.0.0rc2 (linux64)
+
+CPU model: Intel(R) Xeon(R) Platinum 8468, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 96 physical cores, 96 logical processors, using up to 32 threads
+
+Optimize a model with 178 rows, 62 columns and 433 nonzeros
+Model fingerprint: 0x7a7b5990
+Variable types: 21 continuous, 41 integer (41 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+03]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [1e+00, 1e+00]
+  RHS range        [1e+00, 3e+03]
+Presolve removed 165 rows and 50 columns
+Presolve time: 0.00s
+Presolved: 13 rows, 12 columns, 40 nonzeros
+Variable types: 3 continuous, 9 integer (9 binary)
+Found heuristic solution: objective 3.0000000
+
+Explored 0 nodes (0 simplex iterations) in 0.00 seconds (0.00 work units)
+Thread count was 32 (of 96 available processors)
+
+Solution count 1: 3 
+
+Optimal solution found (tolerance 1.00e-04)
+Best objective 3.000000000000e+00, best bound 3.000000000000e+00, gap 0.0000%
+Set parameter TimeLimit to value 172800
+Set parameter MIPFocus to value 1
+Set parameter Heuristics to value 0.5
+Gurobi Optimizer version 10.0.0 build v10.0.0rc2 (linux64)
+
+CPU model: Intel(R) Xeon(R) Platinum 8468, instruction set [SSE2|AVX|AVX2|AVX512]
+Thread count: 96 physical cores, 96 logical processors, using up to 32 threads
+
+Optimize a model with 39138 rows, 23310 columns and 180846 nonzeros
+Model fingerprint: 0xc472c048
+Variable types: 259 continuous, 23051 integer (23051 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 1e+03]
+  Objective range  [2e+02, 2e+02]
+  Bounds range     [1e+00, 1e+00]
+  RHS range        [1e+00, 4e+03]
+Presolve removed 9180 rows and 2346 columns
+Presolve time: 0.22s
+Presolved: 29958 rows, 20964 columns, 121796 nonzeros
+Variable types: 244 continuous, 20720 integer (20720 binary)
+Deterministic concurrent LP optimizer: primal and dual simplex
+Showing first log only...
+
+Concurrent spin time: 0.00s
+
+Solved with dual simplex
+
+Root relaxation: objective 9.300000e+02, 15590 iterations, 2.77 seconds (5.26 work units)
+Total elapsed time = 7.14s
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0  930.00000    0   63          -  930.00000      -     -    9s
+     0     0  930.00000    0  266          -  930.00000      -     -   11s
+     0     0  930.00000    0  291          -  930.00000      -     -   13s
+     0     0  930.00000    0   47          -  930.00000      -     -   21s
+     0     0  930.00000    0  195          -  930.00000      -     -   23s
+     0     0  930.00000    0  197          -  930.00000      -     -   24s
+     0     0  930.00000    0  107          -  930.00000      -     -   28s
+     0     0  930.00000    0  144          -  930.00000      -     -   30s
+     0     0  930.00000    0   74          -  930.00000      -     -   34s
+     0     0  930.00000    0   75          -  930.00000      -     -   34s
+     0     0  930.00000    0   77          -  930.00000      -     -   36s
+     0     0  930.00000    0  114          -  930.00000      -     -   37s
+     0     0  930.00000    0   82          -  930.00000      -     -   39s
+     0     2  930.00000    0   82          -  930.00000      -     -   43s
+     7    16  930.00000    3  184          -  930.00000      -  1671   45s
+  1185  1710 infeasible   29               -  930.00000      -   507   50s
+  5794  2460  930.00000   20  291          -  930.00000      -   235   77s
+  5796  2461  930.00000   31   65          -  930.00000      -   235   82s
+  5797  2462  930.00000   29  165          -  930.00000      -   235   85s
+  5798  2463  930.00000   32   65          -  930.00000      -   235   90s
+  5802  2465  930.00000   44   66          -  930.00000      -   235   97s
+H 5804  2343                     930.0000000  930.00000  0.00%   235  100s
+
+Cutting planes:
+  Cover: 11
+  Implied bound: 7
+  MIR: 3
+  Flow cover: 17
+  RLT: 4
+  Relax-and-lift: 14
+
+Explored 5804 nodes (1618451 simplex iterations) in 100.77 seconds (171.69 work units)
+Thread count was 32 (of 96 available processors)
+
+Solution count 1: 930 
+
+Optimal solution found (tolerance 1.00e-04)
+Best objective 9.300000000000e+02, best bound 9.300000000000e+02, gap 0.0000%
+Mon Aug 19 17:08:46 CEST 2024

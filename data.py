@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 def get_data(file_name):
     # read exel as pandas df and convert into list of dicts:
     travel_time_og = pd.read_excel(file_name, 
@@ -11,13 +10,35 @@ def get_data(file_name):
 
     tt = {}
     tt = travel_time_og.to_dict(orient='records')
+    tt_duplicate = tt.copy()
     tt_new = {}
-
+    counter = 0
+    line_append ={}
+    
     for line in tt:
+        line_duplicate = line.copy()
+        for key in line.keys():
+            if key == 'MC':
+                line_append['MCd'] = line['MC']
+            elif key != 'start':
+                line_append[key + 'p'] = line[key]
+        if line_duplicate['start'] == 'MC':
+            line_duplicate['start'] = line['start'] + 'd'
+        else:
+            line_duplicate['start'] = line['start'] + 'p'
+        new_line1 = line.copy()
+        new_line1.update(line_append)
+        tt_duplicate[counter] = new_line1
+        new_line2 = line_duplicate.copy()
+        new_line2.update(line_append)
+        tt_duplicate.append(new_line2)
+        counter += 1
+
+    for line in tt_duplicate:
         key = line.get('start')
         line.pop('start')
         tt_new[key] = line
-    
+
 
     # read exel as pandas df and convert into list of dicts:
     jobs_og = pd.read_excel(file_name, 
@@ -74,4 +95,3 @@ def get_data(file_name):
     I_total = I + ['MC'] + ['MCd']
 
     return I_total, I0, I_0, I1, I_1, I2, I_2, I3, I_3, tt_new, EST_patient, LST_patient, STD_patient, EST_client, LST_client, STD_client
-

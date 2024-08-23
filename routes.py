@@ -41,7 +41,11 @@ def solve(I_total,              # set of all customers and Medical center
           over_time,            # additional wage surplus for overtime
           driver,               # shift cost for driver
           car_fixed,            # fixed cost for a car being used
-          fuel_cost             # fuel cost per minute
+          fuel_cost,            # fuel cost per minute
+          driver_time_limit,    # limits working hours of the driver
+          runtime_limit,        # limits the solvers runtime in seconds
+          MIPfocus,             # sets the mip focus 
+          heuristics,           # fraction of solver time set for heuristics
           ):
 
     staff = client_staff_match.keys()
@@ -86,7 +90,7 @@ def solve(I_total,              # set of all customers and Medical center
     I_dict['MCd'] = 'MC'
     
 
-    M = 1000
+    M = 1440
 
     """Variable Declaration"""
 
@@ -230,19 +234,11 @@ def solve(I_total,              # set of all customers and Medical center
         for i in range(number_of_clients-1):
             # set current client
             c = staff_schedule[i]
-            # iterate for all following clients
-            # for j in range(i+1,number_of_clients):
-            #     # set following client k
-            #     k = staff_schedule[j]
-            #     # the pickup time at the correstponding pickup node of c (cp) has to be smaller or equal than any drop off time at later clients
-            #     # this ensures that the previously determined order of clients is respected
-            #     model.addConstr(Pt[I_dict.get(c),s] <= Dt[k,s])
             # the immediately following client is set
             k = staff_schedule[i+1]
+            # pickup of staff from prior client must happen before drop off at next client
             model.addConstr(Pt[I_dict.get(c),s] <= Dt[k,s])
-            # some route r has to bring s from cp to k
-            # model.addConstr(quicksum(X[I_dict.get(c),k,r] for r in range(allowed_routes)) == 1)
-            
+            # if a staff is picked up at a client by one route, it must be dropped off at the next client by the same route
             model.addConstrs(P[I_dict.get(c),s,r] == D[k,s,r] for r in range(allowed_routes))
             
 
@@ -509,7 +505,7 @@ def solve(I_total,              # set of all customers and Medical center
     # set start und end time for specific car, as well es limit to one driver driving time
     for c in range(number_of_vehicles):
         model.addConstr(car_travel[c] == end_car_travel[c] - start_car_travel[c])
-        model.addConstr(car_travel[c] <= 480)
+        model.addConstr(car_travel[c] <= driver_time_limit)
         for r in range(allowed_routes):
             model.addConstr(start_car_travel[c] <= (1 - route_car_match[c,r]) * M + t['MC',r])
             model.addConstr((1 - route_car_match[c,r]) * M + end_car_travel[c] >= t['MCd',r])
@@ -554,15 +550,23 @@ def solve(I_total,              # set of all customers and Medical center
             + len(staff1) * level_1 + len(staff2) * level_2 + len(staff3) * level_3         # cost for nurses 8h shifts
             # + quicksum(route_len[r] for r in range(allowed_routes)) * fuel_cost   # cost for fuel
             )
-    # log_callback = LogCallback()
-    # model.setParam(GRB.Param.TimeLimit, 300)
     
-    model.setParam(GRB.Param.SolutionLimit, 25)
-    # model.setParam(GRB.Param.MIPFocus, 2)
-    model.update()
+    # log_callback = LogCallback()
+    model.setParam(GRB.Param.TimeLimit, runtime_limit)
+    # model.setParam(GRB.Param.SolutionLimit, 25)
+    model.setParam(GRB.Param.MIPFocus, MIPfocus)
+    model.setParam(GRB.Param.Heuristics, heuristics)
     # model.optimize(LogCallback.__call__(log_callback, model, GRB.Callback.MIP))
+    # model.setParam(GRB.Param.BranchDir, 1)
+    # model.setParam(GRB.Param.Cuts, 1)
+    model.update()
     model.optimize()
 
+    """Parameter Tuning"""
+    # model.Params.TuneTimeLimit = 28800
+    # model.update()
+    # model.tune()
+    
     """Output"""
     if model.SolCount > 0:
     
@@ -603,7 +607,7 @@ def solve(I_total,              # set of all customers and Medical center
                   }
             file_name = f'outputs/schedule_staff_{s}.xlsx'
             df = pd.DataFrame(data)
-            output_file_path = f'schedule_{s}'
+            # output_file_path = f'schedule_{s}'
             staff_used = False
             for i in I_total:
                 for j in I_total:
@@ -817,6 +821,7 @@ def solve(I_total,              # set of all customers and Medical center
 
                         
 
+        """Decision Variables"""
         variable_groups = {}
         for var in model.getVars():
             name = var.varName.split('_')[0]  # Extract variable name without index
@@ -825,15 +830,16 @@ def solve(I_total,              # set of all customers and Medical center
             variable_groups[name].append(var)
 
         # Save output to a file
-        output_file_path = "outputs/decision_variables.txt"
-        nonzero_output_file_path = "outputs/nonzero_decision_variables.txt"
-        with open(output_file_path, "w") as output_file:
+        # output_file_path = "outputs/decision_variables.txt"
+        nonzero_output_file_path = "outputs/d_nonzero_decision_variables.txt"
+        objective_file_path = "outputs/c_objective.txt"
+        # with open(output_file_path, "w") as output_file:
 
-            # Print decision variables grouped by their names to the file
-            for name, vars in variable_groups.items():
-                output_file.write(f"Variables with name '{name}':\n")
-                for var in vars:
-                    output_file.write(f"{var.varName} = {var.x}\n")
+        #     # Print decision variables grouped by their names to the file
+        #     for name, vars in variable_groups.items():
+        #         output_file.write(f"Variables with name '{name}':\n")
+        #         for var in vars:
+        #             output_file.write(f"{var.varName} = {var.x}\n")
 
         with open(nonzero_output_file_path, "w") as output_file:
 
@@ -843,6 +849,43 @@ def solve(I_total,              # set of all customers and Medical center
                 for var in vars:
                     if var.x >= 0.99:
                         output_file.write(f"{var.varName} = {np.round(var.x,0)}\n")
+        
+
+        """Objective Output"""
+        with open(objective_file_path, 'w') as output_file:
+
+            if allow_delay_clients and allow_overtime:
+                output_file.write(f'Run Time: {model.Runtime}\n')
+                output_file.write(f'Total Cost: {model.ObjVal} \n')
+                output_file.write('Cost for Cars and Drivers: ' + str(sum(use_car[c].getAttr('X') for c in range(number_of_vehicles)) * (driver + car_fixed)) + "\n")
+                output_file.write('Cost for Nurses: ' + str(len(staff1) * level_1 + len(staff2) * level_2 + len(staff3) * level_3) + "\n")
+                output_file.write('Cost for Fuel: ' + str(sum(route_len[r].getAttr('X') for r in range(allowed_routes)) * fuel_cost) + "\n")
+                output_file.write('Cost for Overtime: ' + str(sum(overtime[s].getAttr('X') for s in staff1) * (level_1/8 + over_time)/60
+                                  + sum(overtime[s].getAttr('X') for s in staff2) * (level_2/8 + over_time)/60
+                                  + sum(overtime[s].getAttr('X') for s in staff3) * (level_3/8 + over_time)/60) + "\n")
+                output_file.write('Cost for Delay at Client: ' + str(sum(delay_at_client[i].getAttr('X') for i in (I1 + I2 + I3)) *20/60))
+            elif (not allow_delay_clients) and allow_overtime:
+                output_file.write(f'Run Time: {model.Runtime}\n')
+                output_file.write(f'Total Cost: {model.ObjVal} \n')
+                output_file.write('Cost for Cars and Drivers: ' + str(sum(use_car[c].getAttr('X') for c in range(number_of_vehicles)) * (driver + car_fixed)) + "\n")
+                output_file.write('Cost for Nurses: ' + str(len(staff1) * level_1 + len(staff2) * level_2 + len(staff3) * level_3) + "\n")
+                output_file.write('Cost for Fuel: ' + str(sum(route_len[r].getAttr('X') for r in range(allowed_routes)) * fuel_cost) + "\n")
+                output_file.write('Cost for Overtime: ' + str(sum(overtime[s].getAttr('X') for s in staff1) * (level_1/8 + over_time)/60
+                                  + sum(overtime[s].getAttr('X') for s in staff2) * (level_2/8 + over_time)/60
+                                  + sum(overtime[s].getAttr('X') for s in staff3) * (level_3/8 + over_time)/60))
+            elif allow_delay_clients and (not allow_overtime):
+                output_file.write(f'Run Time: {model.Runtime}\n')
+                output_file.write(f'Total Cost: {model.ObjVal} \n')
+                output_file.write('Cost for Cars and Drivers: ' + str(sum(use_car[c].getAttr('X') for c in range(number_of_vehicles)) * (driver + car_fixed)) + "\n")
+                output_file.write('Cost for Nurses: ' + str(len(staff1) * level_1 + len(staff2) * level_2 + len(staff3) * level_3) + "\n")
+                output_file.write('Cost for Fuel: ' + str(sum(route_len[r].getAttr('X') for r in range(allowed_routes)) * fuel_cost) + "\n")
+                output_file.write('Cost for Delay at Client: ' + str(sum(delay_at_client[i].getAttr('X') for i in (I1 + I2 + I3)) *20/60))
+            else:
+                output_file.write(f'Run Time: {model.Runtime}\n')
+                output_file.write(f'Total Cost: {model.ObjVal} \n')
+                output_file.write('Cost for Cars and Drivers: ' + str(sum(use_car[c].getAttr('X') for c in range(number_of_vehicles)) * (driver + car_fixed)) + "\n")
+                output_file.write('Cost for Nurses: ' + str(len(staff1) * level_1 + len(staff2) * level_2 + len(staff3) * level_3))
+                output_file.write('Cost for Fuel: ' + sum(route_len[r].getAttr('X') for r in range(allowed_routes)) * fuel_cost)
 
         arcs = []
         for i in I_total:

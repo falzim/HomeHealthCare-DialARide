@@ -1,0 +1,4 @@
+Run Time: 2087.0516850948334
+Total Cost: 1210.0 
+Cost for Cars and Drivers: 210.0
+Cost for Nurses: 1000
