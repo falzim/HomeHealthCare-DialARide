@@ -22,10 +22,10 @@ def solve(I_total,              # set of all customers and Medical center
           EST_client, 
           LST_client, 
           STD_client,
-          S,                    # set of all staff
-          S1,                   # set of all staff level 1
-          S2,                   # set of all staff level 2
-          S3,                   # set of all staff level 3
+          S,                    # set of all nurses
+          S1,                   # set of all level staff members 1
+          S2,                   # set of all level staff members 2
+          S3,                   # set of all level staff members 3
           vehicle_capacity,     # vehicle_capacity
           number_of_vehicles,   # how many vehicles are available
           allowed_routes,       # how many different routes are allowed
@@ -41,7 +41,11 @@ def solve(I_total,              # set of all customers and Medical center
           over_time,            # additional wage surplus for overtime
           driver,               # shift cost for driver
           car_fixed,            # fixed cost for a car being used
-          fuel_cost             # fuel cost per minute
+          fuel_cost,            # fuel cost per minute
+          max_driver,           # maximum time a driver is allowed to drive
+          runtime_limit,        # sets the runtime limit for the solver in seconds
+          MIPfocus,             # sets the MIPfocus of the solver
+          heuristics,           # fraction of time spend on heuristics
           ):
     
     # node_pairs_1 = []
@@ -56,12 +60,15 @@ def solve(I_total,              # set of all customers and Medical center
 
     # all_node_pairs = node_pairs_1 + node_pairs_2 + node_pairs_3 + [('MC', 'MCd')]
 
-    node_staff_1 = [] # combinations of i and s with qualification 1 list of Tuples with i as the node and s as the allowed staff
+    node_staff_1 = [] # combinations of i and s with qualification 1 
     node_staff_2 = [] # combinations of i and s with qualification 2
     node_staff_3 = [] # combinations of i and s with qualification 3
     
+    # iterate through all drop-off nodes with level 1:
     for i in (I1 + ['MCd']):
+        #iterate through all nurses with level 1:
         for s in S1:
+            # add tuple of node and nurse to the tuple list:
             node_staff_1 += [(i,s)]
     for i in (I2 + ['MCd']):
         for s in S2:
@@ -96,7 +103,7 @@ def solve(I_total,              # set of all customers and Medical center
     I_dict['MCd'] = 'MC'
    
 
-    M = 1000
+    M = 1440
 
     """Variable Declaration"""
 
@@ -127,6 +134,8 @@ def solve(I_total,              # set of all customers and Medical center
     car_travel = {}
     use_staff = {}
     overtime = {}
+    route_len = {}
+    use_route = {}
     
     for i in I_total:
         for j in I_total:
@@ -204,7 +213,7 @@ def solve(I_total,              # set of all customers and Medical center
 
     # if allow_delay_clients:
     #     for i in (I1 + I2 + I3):
-    #         # how long is the delay of staff s at client i for service start:
+    #         # how long is the delay of staff s at client i before service start:
     #         delay_at_client[i] = model.addVar(name=f'service_delay_{i}', vtype='c', lb=0) 
 
     for c in range(number_of_vehicles):
@@ -227,6 +236,10 @@ def solve(I_total,              # set of all customers and Medical center
     if allow_overtime:
         for s in S: 
             overtime[s] = model.addVar(name=f'overtime_{s}', vtype='c', lb=0, ub=120)
+
+    for r in range(allowed_routes): 
+        route_len[r] = model.addVar(name=f'route_len_{r}', vtype='c', lb=0)
+        use_route[r] = model.addVar(name=f'use_route_{r}', vtype='b')
     
     
     """---------------------------------------------------------------------------------------------------------------------"""
@@ -257,13 +270,14 @@ def solve(I_total,              # set of all customers and Medical center
         model.addConstr(quicksum(X['MC',j,r] for j in I_total if j !=  'MC') == 1)
         # exactly one incoming arc to depot end node
         model.addConstr(quicksum(X[j,'MCd',r] for j in I_total if j != 'MCd') == 1)
-        for i in I_total:
-            for j in I_total:
-                if (i != j) & ((i,j) != ('MC', 'MCd')):
-                    # allow for routes not to be used by travelling from MC to MCd
-                    # in that case, no other edge can be used on that route
-                    # necessary? Doesn't SEC already prevent subtours? and there is no other possibility than a subtour to have the solver cheat, right?
-                    model.addConstr(1 - X['MC', 'MCd',r] >= X[i,j,r])
+        # for i in I_total:
+        #     for j in I_total:
+        #         if (i != j) & ((i,j) != ('MC', 'MCd')):
+        #             # allow for routes not to be used by travelling from MC to MCd
+        #             # in that case, no other edge can be used on that route
+        #             # necessary? Doesn't SEC already prevent subtours? and there is no other possibility than a subtour to have the solver cheat, right?
+        #             model.addConstr(1 - X['MC', 'MCd',r] >= X[i,j,r])
+        # not necessary anylonger
 
     for i in I_total:
         if (i != 'MC') & (i != 'MCd'):
@@ -273,9 +287,39 @@ def solve(I_total,              # set of all customers and Medical center
                 # every route r has to leave a node i as many times as it enters the node i
                 model.addConstr(quicksum(X[i,j,r] for j in I_total if j != i) == quicksum(X[j,i,r] for j in I_total if j != i)) 
 
+    for i in I_total:
+        for j in I_total:
+            if i != j:
+                for r in range(allowed_routes):
+                    # if route r goes from i to j, the arrival time at j has to be larger or equal to the arrival time at i plus the travel time inbetween: MTZ-subtour elimination
+                    model.addConstr((1 - X[i,j,r]) * M + t[j,r] >= t[i,r] + int(tt.get(i).get(j))) 
+                    if allow_wait_staff:
+                        model.addConstr(t[j,r] <= t[i,r] + (1 - X[i,j,r]) * M + int(tt.get(i).get(j)))
+                    # kann hier künstlich Wartezeit erzeugt, aber nicht abgerechnet werden?
+    
+    # Force only one time variable per node to take a value larger 0, to avoid numerical errors: also not necessary anymore
+    for i in I_total:
+        if (i != 'MC') & (i != 'MCd'):
+            model.addConstr(quicksum(y[i,r] for r in range(allowed_routes)) == 1) # jeder Knoten genau einmal angefahren
+            for r in range(allowed_routes):
+                model.addConstr(t[i,r] <= M * y[i,r])
+                # model.addConstr(t[i,r] <= M * quicksum(X[i,j,r] for j in I_total if i!=j))
+    
+    
+    """Next two constraints newly added!!"""
+    for r1 in range(allowed_routes):
+        for r2 in range(allowed_routes):
+            if r2 > r1:
+                # use routes with low index first
+                model.addConstr(use_route[r1] >= use_route[r2])
+    for r in range(allowed_routes):
+        # either use route or use the "exit" arc (MC,MCd)
+        model.addConstr(use_route[r] + X['MC','MCd',r] == 1)
+
 
     """Time windows, Pick up and Drop off of the staff at clients (Home Health Care Problem)"""
     for i in (I1 + I2 + I3):
+        # every client has to be serviced by a qualified staff member
         model.addConstr(quicksum(W[i,s] for s in S if (i,s) in node_staff_tuple) == 1)
     
     for (i,s) in node_staff_tuple:
@@ -287,21 +331,24 @@ def solve(I_total,              # set of all customers and Medical center
             model.addConstr(quicksum(D[i,s,r] for r in range(allowed_routes)) == W[i,s]) 
             # if the respective staff s has been dropped off at client i, it needs to be picked up by some route r from the partner node ip:
             model.addConstr(quicksum(P[I_dict.get(i),s,r] for r in range(allowed_routes)) == W[i,s])
+            # for r in range(allowed_routes):
+            #     # the drop off time of the respective staff s has to be equal to the arrival time of the route r at that respective drop off node i:
+            #     model.addConstr((1 - D[i,s,r]) * M + Dt[i,s] >= t[i,r])
+            #     model.addConstr(Dt[i,s] <= (1 - D[i,s,r]) * M + t[i,r])
+            #     # the pick up time of the respective staff s has to be equal to the arrival time of the picking up route r at the respective node:
+            #     model.addConstr(Pt[I_dict.get(i),s] <= (1 - P[I_dict.get(i),s,r]) * M + t[I_dict.get(i),r]) 
+            #     model.addConstr((1 - P[I_dict.get(i),s,r]) * M + Pt[I_dict.get(i),s] >= t[I_dict.get(i),r])
+            """alternative Code if wait time is not tracked, Dt and Pt can be chosen more freely:"""
             for r in range(allowed_routes):
                 # the drop off time of the respective staff s has to be equal to the arrival time of the route r at that respective drop off node i:
-                model.addConstr((1 - D[i,s,r]) * M + Dt[i,s] >= t[i,r]) 
-                model.addConstr(Dt[i,s] <= (1 - D[i,s,r]) * M + t[i,r])
+                model.addConstr((1 - D[i,s,r]) * M + Dt[i,s] >= t[i,r])
+                if allow_wait_patients:
+                    model.addConstr(Dt[i,s] <= (1 - D[i,s,r]) * M + t[i,r])
                 # the pick up time of the respective staff s has to be equal to the arrival time of the picking up route r at the respective node:
                 model.addConstr(Pt[I_dict.get(i),s] <= (1 - P[I_dict.get(i),s,r]) * M + t[I_dict.get(i),r]) 
-                model.addConstr((1 - P[I_dict.get(i),s,r]) * M + Pt[I_dict.get(i),s] >= t[I_dict.get(i),r])
+                if allow_wait_patients:
+                    model.addConstr((1 - P[I_dict.get(i),s,r]) * M + Pt[I_dict.get(i),s] >= t[I_dict.get(i),r])
 
-    for i in I_total:
-        for j in I_total:
-            if i != j:
-                for r in range(allowed_routes):
-                    # if route r goes from i to j, the arrival time at j has to be larger or equal to the arrival time at i plus the travel time inbetween: MTZ-subtour elimination
-                    model.addConstr((1 - X[i,j,r]) * M + t[j,r] >= t[i,r] + int(tt.get(i).get(j))) 
-                    # kann hier künstlich Wartezeit erzeugt, aber nicht abgerechnet werden?
     if allow_overtime:
         # limit working hours of nurses to eight hours, additional time is overtime:
         model.addConstrs(Dt['MCd',s] - Pt['MC',s] <= 480 + overtime[s] for s in S)  
@@ -310,14 +357,12 @@ def solve(I_total,              # set of all customers and Medical center
         model.addConstrs(Dt['MCd',s] - Pt['MC',s] <= 480 for s in S)  
 
     for s in S: 
-        # limit working hours of nurses to ten hours:
-        model.addConstr(Dt['MCd',s] - Pt['MC',s] <= 600)
         # every staff s can be at most on one route r and if so s needs to be picked up at MC:
         model.addConstr(quicksum(P['MC',s,r] for r in range(allowed_routes)) <= 1) 
         # if staff s is picked up, s also needs to be dropped off at MCd:
         model.addConstr(quicksum(P['MC',s,r] for r in range(allowed_routes)) == quicksum(D['MCd',s,r] for r in range(allowed_routes)))
         # staff s is always first picked up from MC before it can be dropped at MCd in the end:
-        model.addConstr(Pt['MC',s] <= Dt['MCd',s])
+        # model.addConstr(Pt['MC',s] <= Dt['MCd',s]) # not necessary anymore!!
         for r in range(allowed_routes):
             # set the drop off time at MC_ (equivalent to end of work):
             model.addConstr((1 - D['MCd',s,r]) * M + Dt['MCd',s] >= t['MCd',r]) 
@@ -335,7 +380,8 @@ def solve(I_total,              # set of all customers and Medical center
         model.addConstrs((W[i,s] - 1) * M + int(EST_client.get(i)) <= Dt[i,s] + wait_at_client_before[i,s] for (i,s) in node_staff_tuple if i != 'MCd')
         # difference between drop off time at client node i and pick up time at client partner node ip equals
         # the service duration plus the time s had to wait before and after the service:
-        model.addConstrs((1 - W[i,s]) * M + Pt[I_dict.get(i),s] - Dt[i,s] == int(STD_client.get(i)) + wait_at_client_before[i,s] + wait_at_client_after[i,s] for (i,s) in node_staff_tuple if i != 'MCd')
+        model.addConstrs((1 - W[i,s]) * M + Pt[I_dict.get(i),s] - Dt[i,s] >= int(STD_client.get(i)) + wait_at_client_before[i,s] + wait_at_client_after[i,s] for (i,s) in node_staff_tuple if i != 'MCd')
+        model.addConstrs((W[i,s] - 1) * M + Pt[I_dict.get(i),s] - Dt[i,s] <= int(STD_client.get(i)) + wait_at_client_before[i,s] + wait_at_client_after[i,s] for (i,s) in node_staff_tuple if i != 'MCd')
         # every nurse can wait at most one hour a day:
         model.addConstrs(quicksum(wait_at_client_before[i,s] + wait_at_client_after[i,s] for i in I_total if (i,s) in node_staff_tuple) <= max_wait_staff for s in S) 
     else:
@@ -343,26 +389,19 @@ def solve(I_total,              # set of all customers and Medical center
         model.addConstrs((W[i,s] - 1) * M + int(EST_client.get(i)) <= Dt[i,s] for (i,s) in node_staff_tuple if i != 'MCd')
         # difference between drop off time at client node i and pick up time at client partner node ip has to be
         # larger or equal to the standard service time:
-        model.addConstrs((1 - W[i,s]) * M + Pt[I_dict.get(i),s] -  Dt[i,s] >= int(STD_client.get(i)) for (i,s) in node_staff_tuple if i != 'MCd')
+        model.addConstrs((1 - W[i,s]) * M + Pt[I_dict.get(i),s] - Dt[i,s] >= int(STD_client.get(i)) for (i,s) in node_staff_tuple if i != 'MCd')
+        # model.addConstrs(Pt[I_dict.get(i),s] - Dt[i,s] <= (1 - W[i,s]) * M + int(STD_client.get(i)) for (i,s) in node_staff_tuple if i != 'MCd')
 
-    for (i,s) in node_staff_tuple:
+    for (i,s) in node_staff_tuple: # all of these constraints could be removed. they are not necessary anymore for this specific optimizer
         # if staff is dropped off at node i it has to be picked up at the respective pickup node ip:
         model.addConstr(quicksum(D[i,s,r] for r in range(allowed_routes)) == quicksum(P[I_dict.get(i),s,r] for r in range(allowed_routes))) 
         # only if the staff started at MC it can be sent to other nodes:
         model.addConstr(quicksum(P['MC',s,r] for r in range(allowed_routes)) >= quicksum(D[i,s,r] for r in range(allowed_routes)))
         # drop off time at MCd must be larger or equal than any pickup time of the staff (just making sure, the solver is not cheating):
-        model.addConstr(Dt['MCd',s] >= Pt[I_dict.get(i),s])
-        # similarly the pickup time at MC must be smaller or equal to any drop off time of the staff
-        model.addConstr(Pt['MC',s] <= Dt[i,s])
-       
-    
-    # Force only one time variable per node to take a value larger 0: NECCESSARY anymore???
-    for i in I_total:
-        if (i != 'MC') & (i != 'MCd'):
-            model.addConstr(quicksum(y[i,r] for r in range(allowed_routes)) == 1) # jeder Knoten genau einmal angefahren
-            for r in range(allowed_routes):
-                model.addConstr(t[i,r] <= M * y[i,r])
-                # model.addConstr(t[i,r] <= M * quicksum(X[i,j,r] for j in I_total if i!=j))
+        # model.addConstr(Dt['MCd',s] >= Pt[I_dict.get(i),s])
+        # # similarly the pickup time at MC must be smaller or equal to any drop off time of the staff
+        # model.addConstr(Pt['MC',s] <= Dt[i,s])
+        
            
     for r in range(allowed_routes):
         for s in S:
@@ -371,21 +410,23 @@ def solve(I_total,              # set of all customers and Medical center
                 quicksum(P[I_dict.get(i),s,r] for i in I_total if (i,s) in node_staff_tuple) 
                 == quicksum(D[i,s,r] for i in I_total if (i,s) in node_staff_tuple)
                 )
+            
+    # set use_staff to 1 if s is matched wwith any client for service
+    for (i,s) in node_staff_tuple:
+        model.addConstr(use_staff[s] >= W[i,s])
 
 
     """Dial a ride section"""
     for i in I0:
         # every patient i needs to be picked up from home by a route r:
         model.addConstr(quicksum(p[i,r] for r in range(allowed_routes)) == 1) 
+        # every patient i needs to be dropped off at home by a route r:
+        model.addConstr(quicksum(d[I0_dict.get(i),r] for r in range(allowed_routes)) == 1) 
         for r in range(allowed_routes):
             # patient i can only be picked up on a route r that is going by his house:
             model.addConstr(p[i,r] <= quicksum(X[i,j,r] for j in I_total if i != j)) 
-    for i in I_0: 
-        # every patient i needs to be dropped off at home by a route r:
-        model.addConstr(quicksum(d[i,r] for r in range(allowed_routes)) == 1) 
-        for r in range(allowed_routes):
             # patient i can only be dropped off by a route r that is going by his house:
-            model.addConstr(d[i,r] <= quicksum(X[i,j,r] for j in I_total if i != j)) 
+            model.addConstr(d[I0_dict.get(i),r] <= quicksum(X[i,j,r] for j in I_total if i != j)) 
     for r in range(allowed_routes):
         for i in I0:
             # if r is the picking up patient, the drop off time at MC corresponds to the arrival time of r at node MCd:
@@ -403,28 +444,15 @@ def solve(I_total,              # set of all customers and Medical center
             # limit waiting time of patient i at MC to an hour:
             model.addConstr(wait_at_MC_before[i] + wait_at_MC_after[i] <= max_wait_patiens)
     else:
-            for i in I0:
-                # alternative without punishing wait time at MC:
-                model.addConstr(int(STD_patient.get(i)) <= pt[I0_dict.get(i)] - dt[i])
-                # respect earliest starting time at MC (without waiting):
-                model.addConstr(int(EST_patient.get(i)) <= dt[i]) 
+        for i in I0:
+            # alternative without punishing wait time at MC:
+            model.addConstr(int(STD_patient.get(i)) <= pt[I0_dict.get(i)] - dt[i])
+            # respect earliest starting time at MC (without waiting):
+            model.addConstr(int(EST_patient.get(i)) <= dt[i])
     for i in I0:
         # respect latest starting time at MC:
         model.addConstr(int(LST_patient.get(i)) >= dt[i])
-        
-    for i in I_total:
-        if (i != 'MC') & (i != 'MCd'):
-            for l in I0:
-                for r in range(allowed_routes):
-                    if i == l:
-                        # at node i patient i must be picked up:
-                        model.addConstr(quicksum(op[i,j,l,r] for j in I_total if i != j) == p[l,r]) # take this section down
-                    elif i == I0_dict.get(l):
-                        # at node i_ patient i must be dropped off:
-                        model.addConstr(quicksum(op[i,j,l,r] for j in I_total if i != j) == 0) 
-                    else:
-                        # conserve flow of patient i:
-                        model.addConstr(quicksum(op[i,j,l,r] for j in I_total if j != i) == quicksum(op[j,i,l,r] for j in I_total if i != j)) 
+
 
     """Vehicle Capacity Constraint"""
     for s in S:
@@ -438,16 +466,16 @@ def solve(I_total,              # set of all customers and Medical center
                         # if staff s is on route r when travelling from i to j if it was on route r when arriving at i or it was picked up at node i:
                         model.addConstr(
                             quicksum(o[I_dict.get(i),j,s,r] for j in I_total if j != I_dict.get(i)) 
-                            == quicksum(o[l,I_dict.get(i),s,r] for l in I_total if (l != I_dict.get(i)) & (l != 'MCd')) + P[I_dict.get(i),s,r]
+                            == quicksum(o[j,I_dict.get(i),s,r] for j in I_total if (j != I_dict.get(i)) & (j != 'MCd')) + P[I_dict.get(i),s,r]
                             )
                         # staff s is not in on route r if it was dropped off at node i:
                         model.addConstr(
                             quicksum(o[i,j,s,r] for j in I_total if j != i) 
-                            == quicksum(o[l,i,s,r] for l in I_total if (l != i) & (l != 'MCd')) - D[i,s,r]
+                            == quicksum(o[j,i,s,r] for j in I_total if (j != i) & (j != 'MCd')) - D[i,s,r]
                             )
                     # if the respective node is neither a pick up nor a drop off node, the occupation o stays the same:
                     elif (find_key(i, I_dict),s) not in node_staff_tuple: 
-                        model.addConstr(quicksum(o[i,j,s,r] for j in I_total if j != i) == quicksum(o[l,i,s,r] for l in I_total if (l != i) & (l != 'MCd'))) 
+                        model.addConstr(quicksum(o[i,j,s,r] for j in I_total if j != i) == quicksum(o[j,i,s,r] for j in I_total if (j != i) & (j != 'MCd'))) 
                     for j in I_total:
                         if i != j:
                             # only allow for staff s to be in traveling from i to j on route r if arc from i to j is used on route r:
@@ -462,25 +490,38 @@ def solve(I_total,              # set of all customers and Medical center
                     >= quicksum(o[i,j,s,r] for j in I_total for r in range(allowed_routes) if i != j)
                     )
 
-    for l in I0: 
-        for r in range(allowed_routes): 
+    for i in I_total:
+        if (i != 'MC') & (i != 'MCd'):
+            for l in I0:
+                for r in range(allowed_routes):
+                    if i == l:
+                        # at node i patient i must be picked up:
+                        model.addConstr(quicksum(op[i,j,l,r] for j in I_total if i != j) == p[l,r]) 
+                    elif i == I0_dict.get(l):
+                        # at node i_ patient i must be dropped off:
+                        model.addConstr(quicksum(op[i,j,l,r] for j in I_total if i != j) == 0) 
+                    else:
+                        # conserve flow of patient i:
+                        model.addConstr(quicksum(op[i,j,l,r] for j in I_total if j != i) == quicksum(op[j,i,l,r] for j in I_total if i != j)) 
+
+    for l in I0:
+        for r in range(allowed_routes):
             # force op to display the route on which the patient is dropped off:
-            model.addConstr(quicksum(op['MC',j,l,r] for j in I_total if ('MC' != j) & ('MCd' != j)) == d[I0_dict.get(l),r]) 
+            model.addConstr(quicksum(op['MC',j,l,r] for j in I_total if ('MC' != j) & ('MCd' != j)) == d[I0_dict.get(l),r])
             for i in I_total:
                 for j in I_total:
                     if i != j:
                         # op can only be 1 if the route is either picking the patient up or dropping him off:
-                        model.addConstr(op[i,j,l,r] <= p[l,r] + d[I0_dict.get(l),r]) 
+                        model.addConstr(op[i,j,l,r] <= p[l,r] + d[I0_dict.get(l),r])
                         # you can only transport a patient if the arc is used:
-                        model.addConstr(op[i,j,l,r] <= X[i,j,r]) 
+                        model.addConstr(op[i,j,l,r] <= X[i,j,r])
     
     for i in I_total:
-        if i != 'MCd':
-            for j in I_total:
-                if i != j:
-                    for r in range(allowed_routes):
-                        # ensure that limited vehicle capacity is respected:
-                        model.addConstr(quicksum(o[i,j,s,r] for s in S) + quicksum(op[i,j,l,r] for l in I0) <= vehicle_capacity)
+        for j in I_total:
+            if (i != j) & (i != 'MCd'):
+                for r in range(allowed_routes):
+                    # ensure that limited vehicle capacity is respected:
+                    model.addConstr(quicksum(o[i,j,s,r] for s in S) + quicksum(op[i,j,l,r] for l in I0) <= vehicle_capacity)
 
     """Counting vehicles in parallel use"""  
     ## increases computational complexity by factor > 6
@@ -512,17 +553,17 @@ def solve(I_total,              # set of all customers and Medical center
     # set start und end time for specific car, as well es limit to one driver driving time
     for c in range(number_of_vehicles):
         model.addConstr(car_travel[c] == end_car_travel[c] - start_car_travel[c])
-        model.addConstr(car_travel[c] <= 600)
+        model.addConstr(car_travel[c] <= max_driver)
         for r in range(allowed_routes):
             model.addConstr(start_car_travel[c] <= (1 - route_car_match[c,r]) * M + t['MC',r])
             model.addConstr((1 - route_car_match[c,r]) * M + end_car_travel[c] >= t['MCd',r])
             
     
-
+    for r in range(allowed_routes):
+        model.addConstr(route_len[r] >= t['MCd',r] - t['MC',r])
+        
     
-    """Counting staff members used"""
-    for (i,s) in node_staff_tuple:
-        model.addConstr(use_staff[s] >= W[i,s])
+    
     
     
     """---------------------------------------------------------------------------------------------------------------------"""
@@ -536,11 +577,11 @@ def solve(I_total,              # set of all customers and Medical center
             + quicksum(use_staff[s] for s in S2) * level_2 
             + quicksum(use_staff[s] for s in S3) * level_3                                  # cost for nurses 8h shifts
             + quicksum(t['MCd',r] - t['MC',r] for r in range(allowed_routes)) * fuel_cost   # cost for fuel
-            + quicksum(overtime[s] for s in S1) * (level_1/8 + over_time)/60                # cost for overtime (per minte)
+            + quicksum(overtime[s] for s in S1) * (level_1/8 + over_time)/60                # cost for overtime (per minute)
             + quicksum(overtime[s] for s in S2) * (level_2/8 + over_time)/60 
             + quicksum(overtime[s] for s in S3) * (level_3/8 + over_time)/60
             + quicksum(delay_at_client[i] for i in (I1 + I2 + I3)) *20/60                   # penalty cost for being late
-            )
+            ) 
     elif (not allow_delay_clients) and allow_overtime:
         model.setObjective(
             quicksum(use_car[c] for c in range(number_of_vehicles)) * (driver + car_fixed)  # fixed cost for car being used plus driver 8h shift
@@ -567,15 +608,26 @@ def solve(I_total,              # set of all customers and Medical center
             + quicksum(use_staff[s] for s in S1) * level_1 
             + quicksum(use_staff[s] for s in S2) * level_2 
             + quicksum(use_staff[s] for s in S3) * level_3                                  # cost for nurses 8h shifts
-            # + quicksum(t['MCd',r] - t['MC',r] for r in range(allowed_routes)) * fuel_cost   # cost for fuel
+            + quicksum(t['MCd',r] - t['MC',r] for r in range(allowed_routes)) * fuel_cost   # cost for fuel
             )
+
+    # model.setObjective(1)
+    
     # log_callback = LogCallback()
-    model.setParam(GRB.Param.TimeLimit, 1800)
-    # model.setParam(GRB.Param.MIPFocus, 2)
-    model.setParam(GRB.Param.SolutionLimit, 25)
-    model.update()
+    model.setParam(GRB.Param.TimeLimit, runtime_limit)
+    # model.setParam(GRB.Param.SolutionLimit, 25)
+    model.setParam(GRB.Param.MIPFocus, MIPfocus)
+    model.setParam(GRB.Param.Heuristics, heuristics)
     # model.optimize(LogCallback.__call__(log_callback, model, GRB.Callback.MIP))
+    # model.setParam(GRB.Param.BranchDir, 1)
+    # model.setParam(GRB.Param.Cuts, 1)
+    model.update()
     model.optimize()
+
+    # """Parameter Tuning"""
+    # model.Params.TuneTimeLimit = 3600
+    # model.update()
+    # model.tune()
 
     """Output"""
     if model.Status == GRB.OPTIMAL:
@@ -839,15 +891,16 @@ def solve(I_total,              # set of all customers and Medical center
             variable_groups[name].append(var)
 
         # Save output to a file
-        output_file_path = "outputs/decision_variables.txt"
-        nonzero_output_file_path = "outputs/nonzero_decision_variables.txt"
-        with open(output_file_path, "w") as output_file:
+        # output_file_path = "outputs/decision_variables.txt"
+        nonzero_output_file_path = "outputs/c_nonzero_decision_variables.txt"
+        objective_file_path = "outputs/b_objective.txt"
+        # with open(output_file_path, "w") as output_file:
 
-            # Print decision variables grouped by their names to the file
-            for name, vars in variable_groups.items():
-                output_file.write(f"Variables with name '{name}':\n")
-                for var in vars:
-                    output_file.write(f"{var.varName} = {var.x}\n")
+        #     # Print decision variables grouped by their names to the file
+        #     for name, vars in variable_groups.items():
+        #         output_file.write(f"Variables with name '{name}':\n")
+        #         for var in vars:
+        #             output_file.write(f"{var.varName} = {var.x}\n")
 
         with open(nonzero_output_file_path, "w") as output_file:
 
@@ -857,6 +910,42 @@ def solve(I_total,              # set of all customers and Medical center
                 for var in vars:
                     if var.x >= 0.99:
                         output_file.write(f"{var.varName} = {np.round(var.x,0)}\n")
+
+        """Objective Output"""
+        with open(objective_file_path, 'w') as output_file:
+
+            if allow_delay_clients and allow_overtime:
+                output_file.write(f'Run Time: {model.Runtime}\n')
+                output_file.write(f'Total Cost: {model.ObjVal} \n')
+                output_file.write('Cost for Cars and Drivers: ' + str(sum(use_car[c].getAttr('X') for c in range(number_of_vehicles)) * (driver + car_fixed)) + "\n")
+                output_file.write('Cost for Nurses: ' + str(sum(use_staff[s].getAttr('X') for s in S1) * level_1 + sum(use_staff[s].getAttr('X') for s in S2)  * level_2 + sum(use_staff[s].getAttr('X') for s in S3) * level_3) + "\n")
+                output_file.write('Cost for Fuel: ' + str(sum(route_len[r].getAttr('X') for r in range(allowed_routes)) * fuel_cost) + "\n")
+                output_file.write('Cost for Overtime: ' + str(sum(overtime[s].getAttr('X') for s in S1) * (level_1/8 + over_time)/60
+                                  + sum(overtime[s].getAttr('X') for s in S2) * (level_2/8 + over_time)/60
+                                  + sum(overtime[s].getAttr('X') for s in S3) * (level_3/8 + over_time)/60) + "\n")
+                output_file.write('Cost for Delay at Client: ' + str(sum(delay_at_client[i].getAttr('X') for i in (I1 + I2 + I3)) *20/60))
+            elif (not allow_delay_clients) and allow_overtime:
+                output_file.write(f'Run Time: {model.Runtime}\n')
+                output_file.write(f'Total Cost: {model.ObjVal} \n')
+                output_file.write('Cost for Cars and Drivers: ' + str(sum(use_car[c].getAttr('X') for c in range(number_of_vehicles)) * (driver + car_fixed)) + "\n")
+                output_file.write('Cost for Nurses: ' + str(sum(use_staff[s].getAttr('X') for s in S1) * level_1 + sum(use_staff[s].getAttr('X') for s in S2)  * level_2 + sum(use_staff[s].getAttr('X') for s in S3) * level_3) + "\n")
+                output_file.write('Cost for Fuel: ' + str(sum(route_len[r].getAttr('X') for r in range(allowed_routes)) * fuel_cost) + "\n")
+                output_file.write('Cost for Overtime: ' + str(sum(overtime[s].getAttr('X') for s in S1) * (level_1/8 + over_time)/60
+                                  + sum(overtime[s].getAttr('X') for s in S2) * (level_2/8 + over_time)/60
+                                  + sum(overtime[s].getAttr('X') for s in S3) * (level_3/8 + over_time)/60) + "\n")
+            elif allow_delay_clients and (not allow_overtime):
+                output_file.write(f'Run Time: {model.Runtime}\n')
+                output_file.write(f'Total Cost: {model.ObjVal} \n')
+                output_file.write('Cost for Cars and Drivers: ' + str(sum(use_car[c].getAttr('X') for c in range(number_of_vehicles)) * (driver + car_fixed)) + "\n")
+                output_file.write('Cost for Nurses: ' + str(sum(use_staff[s].getAttr('X') for s in S1) * level_1 + sum(use_staff[s].getAttr('X') for s in S2)  * level_2 + sum(use_staff[s].getAttr('X') for s in S3) * level_3) + "\n")
+                output_file.write('Cost for Fuel: ' + str(sum(route_len[r].getAttr('X') for r in range(allowed_routes)) * fuel_cost) + "\n")
+                output_file.write('Cost for Delay at Client: ' + str(sum(delay_at_client[i].getAttr('X') for i in (I1 + I2 + I3)) *20/60))
+            else:
+                output_file.write(f'Run Time: {model.Runtime}\n')
+                output_file.write(f'Total Cost: {model.ObjVal} \n')
+                output_file.write('Cost for Cars and Drivers: ' + str(sum(use_car[c].getAttr('X') for c in range(number_of_vehicles)) * (driver + car_fixed)) + "\n")
+                output_file.write('Cost for Nurses: ' + str(sum(use_staff[s].getAttr('X') for s in S1) * level_1 + sum(use_staff[s].getAttr('X') for s in S2)  * level_2 + sum(use_staff[s].getAttr('X') for s in S3) * level_3) + "\n")
+                output_file.write('Cost for Fuel: ' + str(sum(route_len[r].getAttr('X') for r in range(allowed_routes)) * fuel_cost) + "\n")
 
         arcs = []
         for i in I_total:

@@ -1,0 +1,28 @@
+Data size: 5 
+ 
+Costs: 
+ Staff level 1: 200 
+ Staff level 2: 240 
+ Staff level 3: 280 
+ Overtime: 20 
+ Car fixed: 50 
+ Fuel cost: 0 
+ 
+Solution Space Booleans: 
+ Allow wait staff: False 
+ Allow wait patients: False 
+ Allow delay clients: False 
+ Allow overtime: False 
+ 
+Other parameters: 
+ Staff 1: 1 
+ Staff 2: 1 
+ Staff 3: 1 
+ Vehicle capacity: 4 
+ Number of vehicles: 1 
+ Number of allowed routes: 5 
+ 
+Solver Settings: 
+ Runtime limit: 172800 
+ MIPfocus: 1 
+ Fraction for heuristics: 0.5
